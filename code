@@ -1,0 +1,65 @@
+func textViewDidChangeSelection(textView: UITextView) {
+        if let selectedRange = textView.selectedTextRange {
+            if hasBegunEditing {
+                fullText = textView.text
+                startToCursorText = textView.textInRange(textView.textRangeFromPosition(textView.beginningOfDocument, toPosition: selectedRange.start)!)!
+                prevCursorPosition = currCursorPosition
+                currCursorPosition = textView.offsetFromPosition(textView.beginningOfDocument, toPosition: selectedRange.start)
+                
+                splitted_StartToCursorTextArr = startToCursorText.characters.split{$0 == " " || $0 == "\n"}.map(String.init)
+                //splitted_FullTextArr = fullText.characters.split{$0 == " " || $0 == "\n"}.map(String.init)
+                //currentWordIndex = startToCursorText.characters.filter{$0 == " "}.count
+                
+                currWord = splitted_StartToCursorTextArr.last ?? ""
+                
+                if startToCursorText.characters.last != " " && startToCursorText.characters.last != "\n" &&  startToCursorText.characters.last != "\t" && startToCursorText.characters.last != nil{
+                    searchMusicButton.enabled = true
+                    FirebaseHelper.searchSoundClip(currWord.lowercaseString) { matchingSoundClips in
+                        if let matchingSoundClips = matchingSoundClips {
+                            self.soundClips = matchingSoundClips
+                            let resultsCount = self.soundClips.count
+                            let numRows = resultsCount > 3 ?  3 : resultsCount
+                            self.popUpTableView!.frame = CGRectMake(0, CGFloat(48*(3-numRows)), self.view.frame.width, CGFloat(48*numRows))
+                            self.postTextView.inputAccessoryView!.hidden = false
+                        } else {
+                            self.postTextView.inputAccessoryView!.hidden = true
+                        }
+                    }
+                } else {
+                    searchMusicButton.enabled = false
+                    self.postTextView.inputAccessoryView!.hidden = true
+                }
+                
+                let currTextLength = fullText.utf16.count
+                let prevCurrTextLengthDiff = currTextLength - prevFullTextLength
+                
+                // Text did change
+                if prevFullTextLength != fullText.utf16.count {
+                    
+                    for index in (0..<attributedWordIndexArr.count).reverse() {
+                        let attributedWordStartIndex = attributedWordIndexArr[index][0]
+                        let attributedWordEndIndex = attributedWordIndexArr[index][0] + attributedWordIndexArr[index][1]
+                        
+                        if attributedWordStartIndex >= prevCursorPosition {
+                            attributedWordIndexArr[index][0] = attributedWordStartIndex + prevCurrTextLengthDiff
+                        } else if attributedWordEndIndex > prevCursorPosition
+                            || attributedWordEndIndex == prevCursorPosition && prevCurrTextLengthDiff < 0
+                            || attributedWordEndIndex == prevCursorPosition && isAlphabet(currLetter) {
+                            attributedWordIndexArr.removeAtIndex(index)
+                            soundFileUrls.removeAtIndex(index)
+                            doRewrite = true
+                        } else if attributedWordEndIndex == prevCursorPosition && !isAlphabet(currLetter) {
+                            doRewrite = true
+                        }
+                    }
+                    
+                    prevFullTextLength = currTextLength
+                    if doRewrite {
+                        rewriteText()
+                        doRewrite = false
+                    }
+                    
+                }
+            }
+        }
+    }
